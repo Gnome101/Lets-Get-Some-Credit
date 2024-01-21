@@ -1,6 +1,7 @@
 const { ethers } = require("hardhat");
 const Big = require("big.js");
 const contracts = require("../Addresses");
+require("dotenv").config();
 
 describe("Lets Get Some Credit", function () {
   let creditManager;
@@ -112,13 +113,26 @@ describe("Lets Get Some Credit", function () {
     it("can add users cupud", async () => {
       //Can add users
       //Need to verify user
+      const DAI = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        contracts.Sepolia.DAI
+      );
+      const GHO = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        contracts.Sepolia.GHO
+      );
+      const imposterGHO = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        contracts.Sepolia.GHO,
+        imposter
+      );
       await creditManager.verifyUser("0x", deployer.address);
       const imposterDai = await ethers.getContractAt(
         "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
         contracts.Sepolia.DAI,
         imposter
       );
-      let treefiddy = new Big("3.5").pow(18);
+      let treefiddy = new Big("350000000");
       treefiddy = treefiddy.round();
 
       await imposterDai.approve(creditManager.target, treefiddy.toFixed());
@@ -127,21 +141,60 @@ describe("Lets Get Some Credit", function () {
         contracts.Sepolia.DAI,
         treefiddy.toFixed()
       );
-      let twoo = new Big("2").pow(18);
-      twoo = treefiddy.round();
+      let twoo = new Big("200000000");
+      twoo = twoo.round();
       //
-      twee = new Big("3").pow(18);
-      twee = treefiddy.round();
+      one = new Big("300000000");
+      one = one.round();
       //Deployer creates loan offer
       const timeStamp = (await ethers.provider.getBlock("latest")).timestamp;
 
       await creditManager.createLoanOffer(
         twoo.toFixed(),
-        twee.toFixed(),
+        one.toFixed(),
         timeStamp + 86400 * 10
       );
 
-      //Lender approves the loan
+      const ghoVDebtToken = await ethers.getContractAt(
+        "VariableDebtToken",
+        contracts.Sepolia.VGHODebt,
+        imposter
+      );
+      // const ghoSDebtToken = await ethers.getContractAt(
+      //   "StableDebtToken",
+      //   contracts.Sepolia.SGHODebt,
+      //   imposter
+      // );
+
+      await ghoVDebtToken.approveDelegation(creditManager.target, "200000000");
+      await creditMangerImposter.acceptLoan(0);
+      //await ghoSDebtToken.approveDelegation(creditManager.target, "200000000");
+
+      await creditManager.borrowFromLoan(0);
+      bal1 = await GHO.balanceOf(deployer.address);
+      console.log(bal1);
+      //Deployer needs more dai
+      await imposterGHO.transfer(deployer.address, "100000000");
+      bal2 = await GHO.balanceOf(deployer.address);
+      console.log(bal2);
+      await GHO.approve(creditManager.target, "300000000");
+      //This failed
+      console.log("Here");
+      await creditManager.payOffLoan(0, 300000000);
+      const aaveImpersonatedPool = await ethers.getContractAt(
+        "IPool",
+        contracts.Sepolia.Pool,
+        imposter
+      );
+      await aaveImpersonatedPool.withdraw(
+        DAI.target,
+        treefiddy.toFixed(),
+        imposter.address
+      );
+      // await creditMangerImposter.stopLending(DAI.target);
+
+      const score = await creditManager.getCreditScore(deployer.address);
+      console.log("Score", score);
     });
   });
 });

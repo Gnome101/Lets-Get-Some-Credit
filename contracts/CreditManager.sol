@@ -10,6 +10,8 @@ import {StableDebtToken} from "aave/contracts/protocol/tokenization/StableDebtTo
 import {ICreditManager} from "./ICreditManager.sol";
 import {TransferHelper} from "./TransferHelper.sol";
 
+// import "hardhat/console.sol";
+
 contract CreditManager {
     address public immutable ghoToken;
     address public immutable poolAave;
@@ -49,7 +51,7 @@ contract CreditManager {
             amount
         );
         IERC20(asset).approve(poolAave, amount);
-        IPool(poolAave).supply(asset, amount, address(this), 0);
+        IPool(poolAave).supply(asset, amount, msg.sender, 0);
         if (addyToInfo[msg.sender].lender == address(0)) {
             //New lender
             addyToInfo[msg.sender] = ICreditManager.LenderInfo({
@@ -84,7 +86,9 @@ contract CreditManager {
         lenderID++;
     }
 
-    function acceptLoan(uint256 loanID) public {
+    function acceptLoan(
+        uint256 loanID /*, uint8 v, bytes32 r, bytes32 s*/
+    ) public {
         require(
             addyToInfo[msg.sender].balance -
                 addyToInfo[msg.sender].amountBorrowed >=
@@ -92,14 +96,36 @@ contract CreditManager {
             "NELC" //Not enough lent capital
         );
         address borrower = idToOffer[loanID].borrower;
-        StableDebtToken(ghoStableDebt).approveDelegation(
-            borrower,
-            idToOffer[loanID].amountWanted
-        );
-        VariableDebtToken(ghoVarDebt).approveDelegation(
-            borrower,
-            idToOffer[loanID].amountWanted
-        );
+        console.log("Borrower:", borrower);
+        console.log("Amount approved:", idToOffer[loanID].amountWanted);
+        // StableDebtToken(ghoStableDebt).approveDelegation(
+        //     address(this),
+        //     idToOffer[loanID].amountWanted
+        // );
+        // StableDebtToken(ghoStableDebt).delegationWithSig(
+        //     msg.sender,
+        //     idToOffer[loanID].borrower,
+        //     idToOffer[loanID].amountWanted,
+        //     block.timestamp + 1000000,
+        //     v,
+        //     r,
+        //     s
+        // );
+
+        // VariableDebtToken(ghoVarDebt).delegationWithSig(
+        //     msg.sender,
+        //     address(this),
+        //     idToOffer[loanID].amountWanted,
+        //     block.timestamp + 1000,
+        //     v,
+        //     r,
+        //     s
+        // );
+        // VariableDebtToken(ghoVarDebt).approveDelegation(
+        //     address(this),
+        //     idToOffer[loanID].amountWanted
+        // );
+
         idToOffer[loanID].taken = true;
         lenderToLoans[msg.sender].push(loanID);
         idToLoan[loanID] = ICreditManager.LoanInfo({
@@ -115,6 +141,10 @@ contract CreditManager {
     }
 
     function borrowFromLoan(uint256 loanID) public {
+        require(msg.sender == idToLoan[loanID].borrower, "SMBB"); //Sender must be the borrower
+        console.log("Borrow below");
+        console.log(idToLoan[loanID].amountGiven);
+        console.log(ghoToken, 2, 0, idToLoan[loanID].lender);
         IPool(poolAave).borrow(
             ghoToken,
             idToLoan[loanID].amountGiven,
@@ -122,7 +152,13 @@ contract CreditManager {
             0,
             idToLoan[loanID].lender
         );
-
+        console.log("Borrow");
+        TransferHelper.safeTransfer(
+            ghoToken,
+            msg.sender,
+            idToLoan[loanID].amountGiven
+        );
+        console.log(idToLoan[loanID].amountGiven);
         addyToInfo[idToLoan[loanID].lender].amountBorrowed += idToLoan[loanID]
             .amountGiven;
         addyToInfo[idToLoan[loanID].lender].numberOfLoans++;
@@ -144,21 +180,28 @@ contract CreditManager {
         IPool(poolAave).repay(ghoToken, amount, 2, idToLoan[loanID].lender);
         addyToBorrower[msg.sender].numberOfLoans++;
         addyToBorrower[msg.sender].activeLoans--;
-        addyToBorrower[msg.sender].totalDebt -= amount;
+        if (addyToBorrower[msg.sender].totalDebt < amount) {
+            addyToBorrower[msg.sender].totalDebt = 0;
+        } else {
+            console.log(addyToBorrower[msg.sender].totalDebt, amount);
+            addyToBorrower[msg.sender].totalDebt -= amount;
+        }
+
         addyToBorrower[msg.sender].totalAmountPaid += amount;
     }
 
-    function stopLending() public {
-        TransferHelper.safeTransfer(
-            ghoToken,
-            msg.sender,
+    function stopLending(address asset) public {
+        IPool(poolAave).withdraw(
+            asset,
             addyToInfo[msg.sender].balance -
-                addyToInfo[msg.sender].amountBorrowed
+                addyToInfo[msg.sender].amountBorrowed,
+            msg.sender
         );
+    }
 
-        addyToInfo[msg.sender].balance -=
-            addyToInfo[msg.sender].balance -
-            addyToInfo[msg.sender].amountBorrowed;
+    function makeValidator(address user) public {
+        require(validators[msg.sender]);
+        validators[user] = true;
     }
 
     function verifyUser(bytes memory data, address user) public {
@@ -168,5 +211,30 @@ contract CreditManager {
         }
         verifiedUserData[data] = user;
         verifiedUser[user] = true;
+    }
+
+    function getCreditScore(address user) public view returns (uint256) {
+        if (!verifiedUser[user]) {
+            return 0;
+        }
+
+        if (
+            400 +
+                addyToBorrower[msg.sender].numberOfLoans *
+                5 +
+                addyToBorrower[msg.sender].totalAmountPaid /
+                100000000000 <
+            addyToBorrower[msg.sender].activeLoans * 200
+        ) {
+            return 0;
+        }
+        return
+            400 +
+            addyToBorrower[msg.sender].numberOfLoans *
+            5 +
+            addyToBorrower[msg.sender].totalAmountPaid /
+            100000000000 -
+            addyToBorrower[msg.sender].activeLoans *
+            200;
     }
 }
