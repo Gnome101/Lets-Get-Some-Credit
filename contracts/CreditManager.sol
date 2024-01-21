@@ -24,6 +24,7 @@ contract CreditManager {
 
     mapping(bytes => address) public verifiedUserData;
     mapping(address => bool) public verifiedUser;
+    mapping(address => uint256[]) public lenderToLoans;
 
     mapping(address => bool) public validators;
 
@@ -100,6 +101,7 @@ contract CreditManager {
             idToOffer[loanID].amountWanted
         );
         idToOffer[loanID].taken = true;
+        lenderToLoans[msg.sender].push(loanID);
         idToLoan[loanID] = ICreditManager.LoanInfo({
             loanID: loanID,
             lender: msg.sender,
@@ -131,25 +133,19 @@ contract CreditManager {
         addyToBorrower[msg.sender].totalDebt += idToLoan[loanID].amountOwed;
     }
 
-    function payOffLoan(uint256 loanID) public {
+    function payOffLoan(uint256 loanID, uint256 amount) public {
         TransferHelper.safeTransferFrom(
             ghoToken,
             msg.sender,
             address(this),
-            idToLoan[loanID].amountOwed
+            amount
         );
-        IERC20(ghoToken).approve(poolAave, idToLoan[loanID].amountGiven);
-        IPool(poolAave).repay(
-            ghoToken,
-            idToLoan[loanID].amountGiven,
-            2,
-            idToLoan[loanID].lender
-        );
+        IERC20(ghoToken).approve(poolAave, amount);
+        IPool(poolAave).repay(ghoToken, amount, 2, idToLoan[loanID].lender);
         addyToBorrower[msg.sender].numberOfLoans++;
         addyToBorrower[msg.sender].activeLoans--;
-        addyToBorrower[msg.sender].totalDebt -= idToLoan[loanID].amountOwed;
-        addyToBorrower[msg.sender].totalAmountPaid += idToLoan[loanID]
-            .amountOwed;
+        addyToBorrower[msg.sender].totalDebt -= amount;
+        addyToBorrower[msg.sender].totalAmountPaid += amount;
     }
 
     function stopLending() public {

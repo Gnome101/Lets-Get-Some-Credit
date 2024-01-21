@@ -3,7 +3,8 @@ const Big = require("big.js");
 const contracts = require("../Addresses");
 
 describe("Lets Get Some Credit", function () {
-  let test;
+  let creditManager;
+  let imposter; //sus
   let aavePool;
   let aavePoolAddressRegister;
 
@@ -11,9 +12,14 @@ describe("Lets Get Some Credit", function () {
     accounts = await ethers.getSigners(); // could also do with getNamedAccounts
     deployer = accounts[0];
     user = accounts[1];
+    imposter = await ethers.getImpersonatedSigner(
+      "0x19d96301865fdD07427db3c445508A051BC6D352"
+    );
     console.log("Deploying everthing");
-    //await deployments.fixture(["All"]);
-    //test = await ethers.getContract("Test");
+    await deployments.fixture(["All"]);
+    creditManager = await ethers.getContract("CreditManager");
+    creditMangerImposter = await ethers.getContract("CreditManager", imposter);
+
     const sepoliaPoolAddy = contracts.Sepolia.Pool;
     //const arbGoerlPoolAddy = "0x20fa38a4f8Af2E36f1Cc14caad2E603fbA5C535c";
     //const scrollPoolAddy = "0x48914C788295b5db23aF2b5F0B3BE775C4eA9440";
@@ -22,7 +28,7 @@ describe("Lets Get Some Credit", function () {
   });
 
   describe("Deployment", function () {
-    it("can deploy", async () => {
+    it("can do aave stuff with aave", async () => {
       //const scrollPoolAddy = "0x48914C788295b5db23aF2b5F0B3BE775C4eA9440";
 
       console.log("Here");
@@ -102,6 +108,40 @@ describe("Lets Get Some Credit", function () {
       console.log(balance);
 
       //console.log(num);
+    });
+    it("can add users cupud", async () => {
+      //Can add users
+      //Need to verify user
+      await creditManager.verifyUser("0x", deployer.address);
+      const imposterDai = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        contracts.Sepolia.DAI,
+        imposter
+      );
+      let treefiddy = new Big("3.5").pow(18);
+      treefiddy = treefiddy.round();
+
+      await imposterDai.approve(creditManager.target, treefiddy.toFixed());
+
+      await creditMangerImposter.depositCollateral(
+        contracts.Sepolia.DAI,
+        treefiddy.toFixed()
+      );
+      let twoo = new Big("2").pow(18);
+      twoo = treefiddy.round();
+      //
+      twee = new Big("3").pow(18);
+      twee = treefiddy.round();
+      //Deployer creates loan offer
+      const timeStamp = (await ethers.provider.getBlock("latest")).timestamp;
+
+      await creditManager.createLoanOffer(
+        twoo.toFixed(),
+        twee.toFixed(),
+        timeStamp + 86400 * 10
+      );
+
+      //Lender approves the loan
     });
   });
 });
