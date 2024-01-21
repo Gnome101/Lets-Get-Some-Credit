@@ -96,8 +96,6 @@ contract CreditManager {
             "NELC" //Not enough lent capital
         );
         address borrower = idToOffer[loanID].borrower;
-        console.log("Borrower:", borrower);
-        console.log("Amount approved:", idToOffer[loanID].amountWanted);
         // StableDebtToken(ghoStableDebt).approveDelegation(
         //     address(this),
         //     idToOffer[loanID].amountWanted
@@ -142,9 +140,7 @@ contract CreditManager {
 
     function borrowFromLoan(uint256 loanID) public {
         require(msg.sender == idToLoan[loanID].borrower, "SMBB"); //Sender must be the borrower
-        console.log("Borrow below");
-        console.log(idToLoan[loanID].amountGiven);
-        console.log(ghoToken, 2, 0, idToLoan[loanID].lender);
+
         IPool(poolAave).borrow(
             ghoToken,
             idToLoan[loanID].amountGiven,
@@ -152,13 +148,11 @@ contract CreditManager {
             0,
             idToLoan[loanID].lender
         );
-        console.log("Borrow");
         TransferHelper.safeTransfer(
             ghoToken,
             msg.sender,
             idToLoan[loanID].amountGiven
         );
-        console.log(idToLoan[loanID].amountGiven);
         addyToInfo[idToLoan[loanID].lender].amountBorrowed += idToLoan[loanID]
             .amountGiven;
         addyToInfo[idToLoan[loanID].lender].numberOfLoans++;
@@ -183,7 +177,6 @@ contract CreditManager {
         if (addyToBorrower[msg.sender].totalDebt < amount) {
             addyToBorrower[msg.sender].totalDebt = 0;
         } else {
-            console.log(addyToBorrower[msg.sender].totalDebt, amount);
             addyToBorrower[msg.sender].totalDebt -= amount;
         }
 
