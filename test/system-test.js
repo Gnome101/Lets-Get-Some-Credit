@@ -196,5 +196,44 @@ describe("Lets Get Some Credit", function () {
       const score = await creditManager.getCreditScore(deployer.address);
       console.log("Score", score);
     });
+    async function createSignature() {
+      const nonce = await getNonce(delegator);
+      const DOMAIN_SEPARATOR = await contract.DOMAIN_SEPARATOR();
+      const DELEGATION_WITH_SIG_TYPEHASH =
+        await contract.DELEGATION_WITH_SIG_TYPEHASH();
+
+      // EIP-712 Typed Data
+      const typedData = {
+        domain: {
+          name: "YourContractName",
+          version: "1",
+          chainId: await wallet.getChainId(),
+          verifyingContract: contractAddress,
+        },
+        types: {
+          Delegation: [
+            { name: "delegatee", type: "address" },
+            { name: "value", type: "uint256" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        primaryType: "Delegation",
+        message: {
+          delegatee: delegatee,
+          value: value.toString(),
+          nonce: nonce.toNumber(),
+          deadline: deadline,
+        },
+      };
+
+      const signature = await wallet._signTypedData(
+        typedData.domain,
+        { Delegation: typedData.types.Delegation },
+        typedData.message
+      );
+
+      return ethers.utils.splitSignature(signature);
+    }
   });
 });
