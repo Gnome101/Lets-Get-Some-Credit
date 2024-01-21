@@ -22,6 +22,7 @@ contract CreditManager {
     mapping(uint256 => ICreditManager.LoanInfo) public idToLoan;
     mapping(address => ICreditManager.borrowerInfo) public addyToBorrower;
 
+    mapping(bytes => address) public verifiedUserData;
     mapping(address => bool) public verifiedUser;
 
     mapping(address => bool) public validators;
@@ -36,6 +37,7 @@ contract CreditManager {
         poolAave = _poolAave;
         ghoStableDebt = _ghoStableDebt;
         ghoVarDebt = _ghoVarDebt;
+        validators[msg.sender] = true;
     }
 
     function depositCollateral(address asset, uint256 amount) public {
@@ -76,6 +78,8 @@ contract CreditManager {
             timeCreated: block.timestamp,
             taken: false
         });
+        require(verifiedUser[msg.sender]);
+
         lenderID++;
     }
 
@@ -159,5 +163,14 @@ contract CreditManager {
         addyToInfo[msg.sender].balance -=
             addyToInfo[msg.sender].balance -
             addyToInfo[msg.sender].amountBorrowed;
+    }
+
+    function verifyUser(bytes memory data, address user) public {
+        require(validators[msg.sender]);
+        if (verifiedUserData[data] != address(0)) {
+            revert();
+        }
+        verifiedUserData[data] = user;
+        verifiedUser[user] = true;
     }
 }
