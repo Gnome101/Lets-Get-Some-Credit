@@ -1,5 +1,5 @@
 # Lets-Get-Some-Credit
-## Tech Sack
+## Tech Stack
 
 ### IDAnalyzer
 
